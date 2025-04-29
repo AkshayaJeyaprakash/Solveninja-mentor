@@ -1,7 +1,5 @@
 import os
 import faiss
-import numpy as np
-from flask import Flask, request, jsonify
 from langchain.vectorstores import FAISS
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.docstore import InMemoryDocstore

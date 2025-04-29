@@ -5,3 +5,5 @@ faiss-cpu
 flask
 python-dotenv
 tiktoken
+fastapi
+uvicorn
