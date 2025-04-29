@@ -8,7 +8,10 @@ from langchain.docstore import InMemoryDocstore
 from langchain_core.documents import Document
 from openai import OpenAI
 from dotenv import load_dotenv
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class RAG:
     def __init__(self):
@@ -19,7 +22,7 @@ class RAG:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables.")
-
+        logger.info("Initializing embedding model and OpenAI client.")
         self.embedding_model = OpenAIEmbeddings(openai_api_key=api_key, model="text-embedding-ada-002")
         self.openai_client = OpenAI(api_key=api_key)
         self.vector_store = FAISS(
@@ -29,6 +32,7 @@ class RAG:
             index_to_docstore_id={}
         )
         self.prompt_path = "prompt.pmt"
+        
 
     def indexing_pipeline(self, text: str, metadata: dict = None):
         """
@@ -37,7 +41,12 @@ class RAG:
         :param metadata: Additional metadata for the document (optional)
         """
         document = Document(page_content=text, metadata=metadata or {})
-        self.vector_store.add_documents([document])
+        try:
+            self.vector_store.add_documents([document])
+            logger.info("Document indexed successfully with metadata: %s", metadata)
+        except Exception as e:
+            logger.exception("Failed to index document: %s", e)
+            raise
 
     def retrieve_document(self, query: str):
         """
@@ -45,7 +54,14 @@ class RAG:
         :param query: The query string
         :return: The response from the model after retrieval
         """
-        return self.vector_store.similarity_search(query)
+        try:
+            logger.debug("Retrieving document for query: '%s'", query)
+            result = self.vector_store.similarity_search(query)
+            logger.debug("Retrieved similar documents.")
+            return result[0].page_content
+        except Exception as e:
+            logger.exception("Error retrieving document: %s", e)
+            raise
 
     def augment_prompt(self, question: str, context: str) -> str:
         """
@@ -59,6 +75,7 @@ class RAG:
             with open(self.prompt_path, "r", encoding="utf-8") as file:
                 template = file.read()
             formatted_prompt = template.format(question=question, context=context)
+            logger.debug("Prompt augmented successfully.")
             return formatted_prompt
         except FileNotFoundError:
             raise FileNotFoundError(f"Prompt file not found at: {self.prompt_path}")
@@ -74,14 +91,21 @@ class RAG:
         :param data: The context retrieved from the vector database
         :return: The model's generated response
         """
-        response = self.openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=250
-        )
-        return response.choices[0].message.content
+        try:
+            logger.info("Sending prompt to OpenAI model for completion.")
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=250
+            )
+            logger.info("Response generated successfully.")
+            return response.choices[0].message.content
 
-    def rag_pipeline(self, query : str):
+        except Exception as e:
+            logger.exception("Failed to fetch response from OpenAI: %s", e)
+            raise
+
+    def rag_pipeline(self, query: str):
         """
         Complete the RAG (Retrieval-Augmented Generation) process using the provided user query.
         :param query: The input query string from the user.
