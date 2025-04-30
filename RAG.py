@@ -7,6 +7,9 @@ from langchain_core.documents import Document
 from openai import OpenAI
 from dotenv import load_dotenv
 import logging
+from typing import Optional
+from cachetools import TTLCache
+import uuid
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,6 +33,7 @@ class RAG:
             index_to_docstore_id={}
         )
         self.prompt_path = "prompt.pmt"
+        self.session_manager = TTLCache(maxsize=250, ttl=3600)
         
 
     def indexing_pipeline(self, text: str, metadata: dict = None):
@@ -61,7 +65,7 @@ class RAG:
             logger.exception("Error retrieving document: %s", e)
             raise
 
-    def augment_prompt(self, question: str, context: str) -> str:
+    def augment_prompt(self, question: str, context: str):
         """
         Loads the prompt template from a file and populates it with the given question and context.
         :param prompt_path: Path to the prompt template file (.pmt).
@@ -73,7 +77,7 @@ class RAG:
             with open(self.prompt_path, "r", encoding="utf-8") as file:
                 template = file.read()
             formatted_prompt = template.format(question=question, context=context)
-            logger.debug("Prompt augmented successfully.")
+            logger.info("Prompt augmented successfully.")
             return formatted_prompt
         except FileNotFoundError:
             raise FileNotFoundError(f"Prompt file not found at: {self.prompt_path}")
@@ -82,34 +86,49 @@ class RAG:
         except Exception as e:
             raise Exception(f"An error occurred while loading the prompt: {e}")
 
-    def generate_response(self, prompt: str):
+    def generate_response(self, prompt: str, session_id: str):
         """
         Generate a response from the GPT-4o model using the provided query and context data.
         :param query: The query string provided by the user
         :param data: The context retrieved from the vector database
         :return: The model's generated response
         """
+        if session_id != "":
+            history = self.session_manager[session_id]
+            messages = history + [{"role": "user", "content": prompt}]
+        else:
+            session_id = str(uuid.uuid4())
+            self.session_manager[session_id] = []
+            messages = [{"role": "user", "content": prompt}]
+
+        logger.info(messages)
         try:
             logger.info("Sending prompt to OpenAI model for completion.")
             response = self.openai_client.chat.completions.create(
                 model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=250
+                messages=messages,
+                max_tokens=1000
             )
-            logger.info("Response generated successfully.")
-            return response.choices[0].message.content
-
         except Exception as e:
             logger.exception("Failed to fetch response from OpenAI: %s", e)
             raise
 
-    def rag_pipeline(self, query: str):
+        logger.info("Response generated successfully.")
+        assistant_reply = response.choices[0].message.content
+        self.session_manager[session_id].append({"role": "user", "content": prompt})
+        self.session_manager[session_id].append({"role": "assistant", "content": assistant_reply})
+        return assistant_reply, session_id
+
+    def rag_pipeline(self, query: str, session_id: Optional[str] = None):
         """
         Complete the RAG (Retrieval-Augmented Generation) process using the provided user query.
         :param query: The input query string from the user.
         :return: The model's generated response after retrieving relevant context and augmenting the prompt.
         """
+        if session_id is not None:
+            response = self.generate_response(query, session_id)
+            return response
         context = self.retrieve_document(query)
         prompt = self.augment_prompt(query, context)
-        response = self.generate_response(prompt)
-        return response
+        response, session_id = self.generate_response(prompt, "")
+        return response, session_id

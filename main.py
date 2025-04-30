@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional
-from rag import RAG
+from RAG import RAG
 
 app = FastAPI()
 rag = RAG()
@@ -30,6 +30,7 @@ class DataRequest(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str
+    session_id: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_query(self):
@@ -54,9 +55,8 @@ async def execute_rag_pipeline(request_body: QueryRequest):
     Executes the RAG pipeline based on the user query.
     """
     try:
-        query = request_body.query
-        response = rag.rag_pipeline(query)
-        return {"response": response}
+        response, session_id = rag.rag_pipeline(request_body.query, request_body.session_id)
+        return {"response": response, "session_id": session_id}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
