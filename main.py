@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 from RAG import RAG
@@ -42,8 +42,18 @@ class QueryRequest(BaseModel):
 async def index_data(request_body: DataRequest):
     try:
         metadata_dict = request_body.metadata.dict(by_alias=True) if request_body.metadata else {}
-        rag.indexing_pipeline(request_body.data, metadata_dict)
-        return {"message": "Document indexed successfully"}
+        document_id = rag.indexing_pipeline(request_body.data, metadata_dict)
+        return {"message": "Document indexed successfully", "document_id": document_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+    
+@app.delete("/data/{id}")
+async def index_data(id: str):
+    try:
+        rag.delete_document(id)
+        return Response(status_code=204)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -51,9 +61,6 @@ async def index_data(request_body: DataRequest):
 
 @app.post("/rag")
 async def execute_rag_pipeline(request_body: QueryRequest):
-    """
-    Executes the RAG pipeline based on the user query.
-    """
     try:
         response, session_id = rag.rag_pipeline(request_body.query, request_body.session_id)
         return {"response": response, "session_id": session_id}

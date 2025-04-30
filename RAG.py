@@ -44,11 +44,27 @@ class RAG:
         """
         document = Document(page_content=text, metadata=metadata or {})
         try:
-            self.vector_store.add_documents([document])
+            document_id = self.vector_store.add_documents([document])
             logger.info("Document indexed successfully with metadata: %s", metadata)
+            return document_id
         except Exception as e:
             logger.exception("Failed to index document: %s", e)
             raise
+
+    def delete_document(self, id: str):
+        """
+        Delete a document from the FAISS vector database.
+        :param id: The document ID to delete
+        """
+        try:
+            if id not in self.vector_store.docstore._dict:
+                raise ValueError(f"Document with ID {id} not found.")
+            self.vector_store.delete([id])
+            logger.info("Document deleted successfully with id: %s", id)
+        except Exception as e:
+            logger.exception("Unexpected error while deleting document: %s", e)
+            raise
+
 
     def retrieve_document(self, query: str):
         """
