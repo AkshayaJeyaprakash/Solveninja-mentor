@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Depends
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 from RAG import RAG
+from auth import verify_basic_auth
 
 app = FastAPI()
 rag = RAG()
@@ -39,7 +40,7 @@ class QueryRequest(BaseModel):
         return self
 
 @app.post("/data")
-async def index_data(request_body: DataRequest):
+async def index_data(request_body: DataRequest, _: None = Depends(verify_basic_auth)):
     try:
         metadata_dict = request_body.metadata.dict(by_alias=True) if request_body.metadata else {}
         document_id = rag.indexing_pipeline(request_body.data, metadata_dict)
@@ -50,7 +51,7 @@ async def index_data(request_body: DataRequest):
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
     
 @app.delete("/data/{id}")
-async def index_data(id: str):
+async def delete_data(id: str, _: None = Depends(verify_basic_auth)):
     try:
         rag.delete_document(id)
         return Response(status_code=204)

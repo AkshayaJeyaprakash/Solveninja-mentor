@@ -100,7 +100,7 @@ class RAG:
         except KeyError as e:
             raise ValueError(f"Missing placeholder in prompt template: {e}")
         except Exception as e:
-            raise Exception(f"An error occurred while loading the prompt: {e}")
+            raise SystemError(f"An error occurred while loading the prompt: {e}")
 
     def generate_response(self, prompt: str, session_id: str):
         """
