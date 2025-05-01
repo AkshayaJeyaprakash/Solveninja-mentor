@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Solve-Ninja mentor</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    .chat-box { border: 1px solid #ccc; padding: 10px; max-width: 600px; margin: auto; }
+    .message { margin: 10px 0; }
+    .user { font-weight: bold; color: blue; }
+    .bot { font-weight: bold; color: green; }
+  </style>
+</head>
+<body>
+  <div class="chat-box" id="chat-box">
+    <div class="message"><em>Start chatting with your mentor ...</em></div>
+  </div>
+  <input type="text" id="question" placeholder="Type your question..." style="width:80%;">
+  <button onclick="askQuestion()">Ask</button>
+
+  <script>
+    let sessionId = null;
+
+    async function askQuestion() {
+      const question = document.getElementById("question").value;
+      if (!question.trim()) return;
+
+      const chatBox = document.getElementById("chat-box");
+      chatBox.innerHTML += `<div class="message"><span class="user">You:</span> ${question}</div>`;
+      document.getElementById("question").value = "";
+
+      const response = await fetch("/rag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: question, session_id: sessionId })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        sessionId = data.session_id;
+        chatBox.innerHTML += `<div class="message"><span class="bot">RAG:</span> ${data.response}</div>`;
+      } else {
+        chatBox.innerHTML += `<div class="message"><span class="bot">Error:</span> Could not get response.</div>`;
+      }
+
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+  </script>
+</body>
+</html>

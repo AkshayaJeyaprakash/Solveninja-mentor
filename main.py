@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 from RAG import RAG
 from auth import verify_basic_auth
+from fastapi.responses import HTMLResponse
 
 app = FastAPI(
     title="RAG API",
@@ -11,6 +12,12 @@ app = FastAPI(
     version="1.0.0"
 )
 rag = RAG()
+
+@app.get("/", response_class=HTMLResponse)
+def serve_ui():
+    with open("chat.html") as f:
+        return f.read()
+
 
 class Metadata(BaseModel):
     created_by: Optional[str] = Field(None, alias="created by")
