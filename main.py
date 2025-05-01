@@ -4,7 +4,12 @@ from typing import Optional
 from RAG import RAG
 from auth import verify_basic_auth
 
-app = FastAPI()
+app = FastAPI(
+    title="RAG API",
+    description="API for interacting with a Retrieval-Augmented Generation (RAG) model — add and delete documents.",
+    tag="Knowlegde base",
+    version="1.0.0"
+)
 rag = RAG()
 
 class Metadata(BaseModel):
@@ -39,7 +44,7 @@ class QueryRequest(BaseModel):
             raise ValueError("'query' must be a string.")
         return self
 
-@app.post("/data")
+@app.post("/data", tags=["Documents"])
 async def index_data(request_body: DataRequest, _: None = Depends(verify_basic_auth)):
     try:
         metadata_dict = request_body.metadata.dict(by_alias=True) if request_body.metadata else {}
@@ -50,7 +55,7 @@ async def index_data(request_body: DataRequest, _: None = Depends(verify_basic_a
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
     
-@app.delete("/data/{id}")
+@app.delete("/data/{id}", tags=["Documents"])
 async def delete_data(id: str, _: None = Depends(verify_basic_auth)):
     try:
         rag.delete_document(id)
@@ -60,7 +65,7 @@ async def delete_data(id: str, _: None = Depends(verify_basic_auth)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
-@app.post("/rag")
+@app.post("/rag", include_in_schema=False)
 async def execute_rag_pipeline(request_body: QueryRequest):
     try:
         response, session_id = rag.rag_pipeline(request_body.query, request_body.session_id)
